@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\YoutubeComment;
 use App\Http\Requests\StoreYoutubeCommentRequest;
 use App\Http\Requests\UpdateYoutubeCommentRequest;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 class YoutubeCommentController extends Controller
 {
@@ -18,9 +20,9 @@ class YoutubeCommentController extends Controller
         $negativeCount = YouTubeComment::select('textOriginal', 'sentiment', 'publishedAt')->where('sentiment', 'negative')->count();
         $neutralCount = YouTubeComment::select('textOriginal', 'sentiment', 'publishedAt')->where('sentiment', 'neutral')->count();
 
-        $positivePercentage = ($positiveCount * 100) / $totalComments;
-        $negativePercentage = ($negativeCount * 100) / $totalComments;
-        $neutralPercentage = ($neutralCount * 100) / $totalComments;
+        $positivePercentage = $totalComments ? ($positiveCount * 100) / $totalComments : 0;
+        $negativePercentage = $totalComments ? ($negativeCount * 100) / $totalComments : 0;
+        $neutralPercentage = $totalComments ? ($neutralCount * 100) / $totalComments : 0;
 
         $total = [
             'TotalComment' => $totalComments,
@@ -43,11 +45,21 @@ COALESCE(COUNT(*), 0) AS TotalCommentCount')
             ->orderByRaw('YEAR(publishedat), MONTH(publishedat)')
             ->get();
 
+        $videoId = YoutubeComment::select('videoId')->first();
+
+        if (empty($videoId)) {
+            $videoId = "";
+        } else {
+            $videoId = $videoId->videoId;
+        }
+
+        $top = YouTubeComment::select('textOriginal', 'sentiment', 'publishedAt', 'authorProfileImageUrl', 'authorChannelUrl')->orderBy('publishedAt', 'desc')->limit(5)->get();
+
         return view('youtube-comments.index', [
             'total' => $total,
             'result' => $result,
-            'videoId' => YoutubeComment::select('videoId')->first(),
-            'top5' => YouTubeComment::select('textOriginal', 'sentiment', 'publishedAt', 'authorProfileImageUrl', 'authorChannelUrl')->orderBy('publishedAt', 'desc')->limit(5)->get(),
+            'videoId' => $videoId,
+            'top5' => $top,
         ]);
     }
 
@@ -64,7 +76,15 @@ COALESCE(COUNT(*), 0) AS TotalCommentCount')
      */
     public function store(StoreYoutubeCommentRequest $request)
     {
-        //
+        dump(YoutubeComment::all());
+        DB::table("youtubecomments")->delete();
+        dump(YoutubeComment::all());
+        Http::post("http://127.0.0.1:5000/get_video_comments", [
+            "youtube_link" => $request->url,
+        ]);
+        dump(YoutubeComment::all());
+
+        return redirect()->route("youtube-comments.index");
     }
 
     /**
